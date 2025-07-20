@@ -1,0 +1,3 @@
+- desparidade entre cada spread
+    negativo vende a 
+    comprar o bid e vender ask
