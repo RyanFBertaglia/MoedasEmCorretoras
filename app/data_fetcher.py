@@ -1,10 +1,7 @@
-import threading
-import time
 import requests
-from typing import Dict, Any
-
-data_store: Dict[str, Any] = {}
-_lock = threading.Lock()
+import asyncio
+import httpx
+import time
 
 PAIRS = [
     ("BTC_USDT", "BTCUSDT"),
@@ -27,46 +24,72 @@ PAIRS = [
     ("LINK_USDT", "LINKUSDT"),
 ]
 
-FETCH_INTERVAL = 0.5
-
-def _fetch_gateio():
+def fetch_all_gateio_tickers(retries=3):
     url = "https://api.gateio.ws/api/v4/spot/tickers"
-    while True:
-        for gate_sym, _ in PAIRS:
+    for attempt in range(1, retries+1):
+        try:
+            r = requests.get(url, timeout=10)
+            return {item["currency_pair"]: item for item in r.json()}
+        except Exception as e:
+            print(f"[Gate.io] Tentativa {attempt}: {e}")
+            time.sleep(1.5)
+    return {}
+
+async def get_all_mexc_asks(symbols, retries=2):
+    url_base = "https://api.mexc.com/api/v3/depth?limit=1&symbol="
+    asks = {}
+
+    for attempt in range(1, retries+1):
+        async with httpx.AsyncClient(timeout=10) as client:
+            tasks = [client.get(url_base + symbol) for symbol in symbols]
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_failed = True
+        for symbol, resp in zip(symbols, responses):
+            if isinstance(resp, Exception):
+                print(f"[MEXC] Tentativa {attempt}: requisição falhou para {symbol}: {resp}")
+                asks[symbol] = None
+                continue
+
+            if resp.status_code != 200:
+                snippet = resp.text[:200].replace("\n", " ")
+                print(f"[MEXC] Tentativa {attempt}: status {resp.status_code} para {symbol}: {snippet}")
+                asks[symbol] = None
+                continue
+
             try:
-                r = requests.get(url, params={"currency_pair": gate_sym}, timeout=5)
-                arr = r.json()
-                bid = float(arr[0].get("highest_bid", 0)) if arr else None
-            except Exception:
-                bid = None
+                data = resp.json()
+            except ValueError:
+                snippet = resp.text[:200].replace("\n", " ")
+                print(f"[MEXC] Tentativa {attempt}: JSON inválido para {symbol}: '{snippet}'")
+                asks[symbol] = None
+                continue
 
-            with _lock:
-                data_store[gate_sym + "_bid"] = bid
-        time.sleep(FETCH_INTERVAL)
-
-def _fetch_mexc():
-    url = "https://api.mexc.com/api/v3/depth"
-    while True:
-        for _, mexc_sym in PAIRS:
             try:
-                r = requests.get(url, params={"symbol": mexc_sym, "limit": 1}, timeout=5)
-                d = r.json()
-                ask = float(d["asks"][0][0]) if d.get("asks") else None
-            except Exception:
-                ask = None
+                asks_list = data.get("asks", [])
+                ask = float(asks_list[0][0]) if asks_list else None
+                asks[symbol] = ask
+                if ask is not None:
+                    all_failed = False
+            except Exception as e:
+                print(f"[MEXC] Tentativa {attempt}: parsing do preço para {symbol} falhou: {e}")
+                asks[symbol] = None
 
-            with _lock:
-                data_store[mexc_sym + "_ask"] = ask
-        time.sleep(FETCH_INTERVAL)
+        if not all_failed:
+            break
 
-def start_background_fetch():
-    t1 = threading.Thread(target=_fetch_gateio, daemon=True, name="fetch_gateio")
-    t2 = threading.Thread(target=_fetch_mexc, daemon=True, name="fetch_mexc")
-    t1.start()
-    t2.start()
+        await asyncio.sleep(1.5)
 
-def get_pair_data(gate_sym: str, mexc_sym: str):
-    with _lock:
-        bid = data_store.get(gate_sym + "_bid")
-        ask = data_store.get(mexc_sym + "_ask")
-    return bid, ask
+    return asks
+
+def fetch_all_data():
+    """
+    Função principal para obter os dados combinados de Gate.io e MEXC.
+    Retorna:
+      - gateio_cache: dict com dados da Gate.io
+      - mexc_asks: dict com preços ask da MEXC
+    """
+    gateio_cache = fetch_all_gateio_tickers()
+    mexc_symbols = [mexc for _, mexc in PAIRS]
+    mexc_asks = asyncio.run(get_all_mexc_asks(mexc_symbols))
+    return gateio_cache, mexc_asks

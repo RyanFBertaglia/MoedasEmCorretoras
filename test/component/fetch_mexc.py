@@ -33,5 +33,4 @@ def update_order_book_data(symbol: str = "BTCUSDT", interval: int = 1):
         finally:
             time.sleep(interval)
 
-# Inicia a thread automaticamente
 threading.Thread(target=update_order_book_data, daemon=True, name="MEXC_OrderBook_Updater").start()
