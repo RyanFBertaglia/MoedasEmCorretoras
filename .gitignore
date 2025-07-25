@@ -1,4 +1,4 @@
 test/integration/**
 test/integration
-app/__pycache__/**
-app/__pycache__
+__pycache__/**
+__pycache__
