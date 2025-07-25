@@ -1,4 +1,5 @@
 import redis
+import json
 from redis.commands.json.path import Path
 
 class RedisDB:

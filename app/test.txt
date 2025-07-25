@@ -1,4 +1,0 @@
-docker run -d --name redis-arbitragem -p 6379:6379 redis/redis-stack-server
-docker stop redis-arbitragem
-docker start redis-arbitragem
-api mexc futuro

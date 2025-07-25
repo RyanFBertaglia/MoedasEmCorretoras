@@ -6,7 +6,6 @@ import data_fetcher
 from database import RedisDB
 db = RedisDB()
 
-
 st.set_page_config(page_title="Arbitragem Multi-Moeda REST", layout="wide")
 
 if "spread_history" not in st.session_state:
@@ -53,11 +52,17 @@ def update_table():
         symbol = gate_sym.replace("_USDT", "")
         bid = gateio_cache.get(gate_sym, {}).get("highest_bid")
         ask = mexc_asks.get(mexc_sym)
-        bid = float(bid) if bid else None
-        ask = float(ask) if ask else None
+        try:
+            bid = float(bid) if bid is not None else None
+        except:
+            bid = None
+        try:
+            ask = float(ask) if ask is not None else None
+        except:
+            ask = None
 
         if bid is None or ask is None:
-            table.append([symbol, "-", "-", "-", "-"])
+            table.append([symbol, "-", "-", None, "-"])
             continue
 
         spread_pct = (bid - ask) / ask * 100
@@ -101,14 +106,14 @@ with placeholder.container():
     rows = ""
     for symbol, bid, ask, spread, std_dev in table:
         bg = ""
-        val = f"{spread:.2f}%"
-        if spread == "-":
-            val = "-"
-        else:
+        if isinstance(spread, (float, int)):
+            val = f"{spread:.2f}%"
             if spread > alert_threshold:
                 bg = "background-color: #c6efce;"
             elif spread < -alert_threshold:
                 bg = "background-color: #f2c7c5;"
+        else:
+            val = "-"
         rows += f"<tr><td>{symbol}</td><td>{bid}</td><td>{ask}</td><td style='{bg}'>{val}</td><td>{std_dev}</td></tr>"
     html = (
         "<table>"
@@ -153,7 +158,7 @@ with placeholder.container():
         valor_gateio = gateio_saldo * gateio_price
         valor_mexc = mexc_saldo * mexc_price
         total_usd = valor_gateio + valor_mexc
-        lucro_prejuizo = total_usd - 200
+        lucro_prejuizo = total_usd - 100  # saldo inicial $200 = $100 em cada corretora
 
         lucro_style = "color: green;" if lucro_prejuizo >= 0 else "color: red;"
         if round(sum_var_pct, 2) > 0:
@@ -162,7 +167,7 @@ with placeholder.container():
             profit_cell_style = "background-color: #f2c7c5; color: black;"
         else:
             profit_cell_style = "color: black;"
-                        
+
         saldo_rows += (
             f"<tr>"
             f"<td>{coin}</td>"
@@ -184,7 +189,6 @@ with placeholder.container():
     )
     st.markdown(saldo_html, unsafe_allow_html=True)
 
-    # Gráfico histórico
     keys = [k for k,v in st.session_state.spread_history.items() if v]
     if keys:
         st.markdown("### 📈 Histórico de Spread (%) por Moeda")
