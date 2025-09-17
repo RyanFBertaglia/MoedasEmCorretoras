@@ -7,12 +7,12 @@
 
 ### Demonstração:
 
-** Spreads por moeda: **
+__ Spreads por moeda: __
 ![Spreads](./static/spread.png)
 ![Spreads por moeda](./static/spread-por-moeda.png)
 
 
-** Rendimento na simulação: **
+__ Rendimento na simulação: __
 ![Rendimentos](./static/saldos.png)
 
 ## Como rodar:
@@ -27,7 +27,7 @@ Importe as dependencias
 > Abra o arquivo requirements.txt e rode os comandos
 
 Inicialize os dados de referencia
-> python init_database
+> python init_database.py
 
 Rode a aplicação
 > streamlit run main.py
